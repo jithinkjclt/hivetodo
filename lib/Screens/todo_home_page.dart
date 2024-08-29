@@ -1,199 +1,197 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:hivelerning/services/todo_service.dart';
-
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hivelerning/Screens/cuubit_cubit.dart';
 import '../models/todo_model.dart';
 
-class TodoScreen extends StatefulWidget {
+class TodoScreen extends StatelessWidget {
   const TodoScreen({super.key});
 
   @override
-  State<TodoScreen> createState() => _TodoScreenState();
-}
-
-class _TodoScreenState extends State<TodoScreen> {
-  final TextEditingController _titlectr = TextEditingController();
-  final TextEditingController _discriptionectr = TextEditingController();
-  final TodoService _todoService = TodoService();
-  List<Todo> _todo = [];
-
-  Future<void> _loadTodo() async {
-    _todo = await _todoService.getTodos();
-    setState(() {});
-  }
-
-  @override
-  void initState() {
-    // TODO: implement initState
-    _loadTodo();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add),
-        onPressed: () {
-          _showAddDilog();
-        },
-      ),
-      appBar: AppBar(
-        title: const Text("All Task"),
-      ),
-      body: Container(
-        padding: const EdgeInsets.all(20),
-        height: double.infinity,
-        width: double.infinity,
-        child: ListView.builder(
-          itemCount: _todo.length,
-          itemBuilder: (context, index) {
-            final todo = _todo[index];
-            return Card(
-              elevation: 5,
-              child: ListTile(
-                leading:  CircleAvatar(
-                  child: Text("${index+1}"),
-                ),
-                tileColor: Colors.pink.shade50,
-                contentPadding: const EdgeInsets.all(15),
-                onTap: () {
-                  _showEditDialog(todo, index);
-                },
-                trailing: Container(
-                  width: 70,
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: todo.completed,
-                        onChanged: (value) {
-                          setState(() {
-                            todo.completed = value!;
-                            _todoService.updateTodo(index, todo);
-                            setState(() {});
-                          });
-                        },
+    return BlocProvider(
+      create: (context) => CuubitCubit()..loadTodo(),
+      child: BlocBuilder<CuubitCubit, CuubitState>(
+        builder: (context, state) {
+          final cubit = context.read<CuubitCubit>();
+          return Scaffold(
+            floatingActionButton: FloatingActionButton(
+              child: const Icon(Icons.add),
+              onPressed: () {
+                _showAddDialog(context, cubit);
+              },
+            ),
+            appBar: AppBar(
+              title: const Text("All Tasks"),
+            ),
+            body:cubit.todo.isNotEmpty? Container(
+              padding: const EdgeInsets.all(20),
+              height: double.infinity,
+              width: double.infinity,
+              child: ListView.builder(
+                itemCount: cubit.todo.length,
+                itemBuilder: (context, index) {
+                  final todo = cubit.todo[index];
+                  return Card(
+                    elevation: 5,
+                    child: ListTile(
+                      leading: CircleAvatar(
+
+                        child: Image(image: NetworkImage(todo.imgurl),fit: BoxFit.fill,),
                       ),
-                      InkWell(
-                        onTap: () {
-                          _todoService.deleteTodo(index);
-                          _loadTodo();
-                        },
-                        child: const Icon(
-                          Icons.delete,
-                          size: 20,
-                          color: Colors.red,
+                      tileColor: Colors.pink.shade50,
+                      contentPadding: const EdgeInsets.all(15),
+                      onTap: () {
+                        _showEditDialog(context, cubit, todo, index);
+                      },
+                      trailing: SizedBox(
+                        width: 70,
+                        child: Row(
+                          children: [
+                            Checkbox(
+                              value: todo.completed,
+                              onChanged: (value) {
+                                todo.completed = value!;
+                                cubit.todoService.updateTodo(index, todo);
+                                cubit.loadTodo();
+                              },
+                            ),
+                            InkWell(
+                              onTap: () {
+                                cubit.todoService.deleteTodo(index);
+                                cubit.loadTodo();
+                              },
+                              child: const Icon(
+                                Icons.delete,
+                                size: 20,
+                                color: Colors.red,
+                              ),
+                            )
+                          ],
                         ),
-                      )
-                    ],
-                  ),
-                ),
-                title: Text(todo.title),
-                subtitle: Text(todo.discription),
+                      ),
+                      title: Text(todo.title),
+                      subtitle: Text(todo.discription),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
+            ):Center(child: Text("No Todo Added")),
+          );
+        },
       ),
     );
   }
 
-  Future<void> _showAddDilog() async {
+  Future<void> _showAddDialog(BuildContext context, CuubitCubit cubit) async {
     await showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text("Add New Task"),
           content: SizedBox(
-            height: 150,
+            height: 250,
             child: Column(
               children: [
-                const SizedBox(
-                  height: 25,
-                ),
+                const SizedBox(height: 25),
                 TextField(
                   decoration: const InputDecoration(hintText: "Title"),
-                  controller: _titlectr,
+                  controller: cubit.titlectr,
                 ),
                 TextField(
-                  decoration: const InputDecoration(hintText: "Discription"),
-                  controller: _discriptionectr,
+                  decoration: const InputDecoration(hintText: "Description"),
+                  controller: cubit.discriptionectr,
+                ),
+                TextField(
+                  decoration: const InputDecoration(hintText: "Image URL"),
+                  controller: cubit.imgectr,
                 ),
               ],
             ),
           ),
           actions: [
             ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text("Cancel")),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text("Cancel"),
+            ),
             ElevatedButton(
-                onPressed: () async {
-                  final newTodo = Todo(
-                      title: _titlectr.text,
-                      completed: false,
-                      createdAt: DateTime.now(),
-                      discription: _discriptionectr.text);
-                  await _todoService.addTodo(newTodo);
-                  _titlectr.clear();
-                  _discriptionectr.clear();
-                  Navigator.pop(context);
-                  _loadTodo();
-                },
-                child: const Text("Add"))
+              onPressed: () async {
+                final newTodo = Todo(
+                  imgurl: cubit.imgectr.text,
+                  title: cubit.titlectr.text,
+                  completed: false,
+                  createdAt: DateTime.now(),
+                  discription: cubit.discriptionectr.text,
+                );
+                await cubit.todoService.addTodo(newTodo);
+                cubit.titlectr.clear();
+                cubit.discriptionectr.clear();
+                cubit.imgectr.clear();
+                Navigator.pop(context);
+                cubit.loadTodo();
+              },
+              child: const Text("Add"),
+            ),
           ],
         );
       },
     );
   }
 
-  Future<void> _showEditDialog(Todo todo, int index) async {
-    _titlectr.text = todo.title;
-    _discriptionectr.text = todo.discription;
+  Future<void> _showEditDialog(
+      BuildContext context, CuubitCubit cubit, Todo todo, int index) async {
+    cubit.titlectr.text = todo.title;
+    cubit.discriptionectr.text = todo.discription;
+    cubit.imgectr.text = todo.imgurl;
     await showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Add New Task"),
+          title: const Text("Edit Task"),
           content: SizedBox(
-            height: 150,
+            height: 250,
             child: Column(
               children: [
-                const SizedBox(
-                  height: 25,
-                ),
+                const SizedBox(height: 25),
                 TextField(
                   decoration: const InputDecoration(hintText: "Title"),
-                  controller: _titlectr,
+                  controller: cubit.titlectr,
                 ),
                 TextField(
-                  decoration: const InputDecoration(hintText: "Discription"),
-                  controller: _discriptionectr,
+                  decoration: const InputDecoration(hintText: "Description"),
+                  controller: cubit.discriptionectr,
+                ),
+                TextField(
+                  decoration: const InputDecoration(hintText: "Image URL"),
+                  controller: cubit.imgectr,
                 ),
               ],
             ),
           ),
           actions: [
             ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text("Cancel")),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text("Cancel"),
+            ),
             ElevatedButton(
-                onPressed: () async {
-                  todo.title = _titlectr.text;
-                  todo.discription = _discriptionectr.text;
-                  todo.createdAt = DateTime.now();
-                  if (todo.completed == false) {
-                    todo.completed = true;
-                  }
-                  await _todoService.updateTodo(index, todo);
-                  _titlectr.clear();
-                  _discriptionectr.clear();
-                  Navigator.pop(context);
-                  _loadTodo();
-                },
-                child: const Text("Updated"))
+              onPressed: () async {
+                todo.title = cubit.titlectr.text;
+                todo.discription = cubit.discriptionectr.text;
+                todo.imgurl = cubit.imgectr.text;
+                todo.createdAt = DateTime.now();
+                await cubit.todoService.updateTodo(index, todo);
+                cubit.titlectr.clear();
+                cubit.discriptionectr.clear();
+                cubit.imgectr.clear();
+                Navigator.pop(context);
+                cubit.loadTodo();
+              },
+              child: const Text("Update"),
+            ),
           ],
         );
       },
