@@ -1,0 +1,5 @@
+package com.example.hivelerning
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity: FlutterActivity()
